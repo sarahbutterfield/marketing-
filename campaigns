@@ -1,0 +1,26 @@
+WITH base as (
+    SELECT loan_file_id,Campaign, first_email_at, lfke.locked_at locked_at, lfke.funded_at funded_at, adverse_at, value
+    FROM current_loan_file_fact
+    JOIN loan_file_key_events lfke
+    USING (loan_file_id)
+    JOIN (
+        select loan_file_id, first_email_at ,
+               case when campaign_id=1000467 then 'BSS winback'
+                when campaign_id=1000466 then 'BSS welcome Email' end as Campaign
+        FROM marketing.email_campaign_user_key_events
+        WHERE campaign_id in( 1000467,1000466)
+    )
+    USING (loan_file_id)
+    WHERE path IN ('/ThirdPartyServices/Title/Provider')
+    AND loan_file_id IN (
+      SELECT DISTINCT loan_file_id
+      FROM marketing.email_campaign_user_key_events WHERE campaign_id = 1000466
+    )
+    AND lfke.funded_at > first_email_at
+)
+SELECT Campaign,
+       count(*) total_funds,
+       SUM(("value"='"BetterSettlementServices"')::INT) total_bss_funds,
+       SUM(("value"='"BetterSettlementServices"')::INT)/COUNT(*)::FLOAT percent_bss
+FROM base
+GROUP BY 1
